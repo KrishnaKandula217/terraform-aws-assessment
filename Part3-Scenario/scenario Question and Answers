@@ -1,0 +1,70 @@
+## 🎯 Part 3: Scenario Responses
+
+### Q1: How do you handle infrastructure drift?
+
+Infrastructure drift occurs when the real-world infrastructure changes outside of Terraform, causing a mismatch between the Terraform state and the actual resources.
+
+We can use below command to find drift:
+
+terraform plan 
+
+To resolve the drift, we need to do below steps:
+1. **Reconcile:** `terraform refresh` then `terraform apply`
+2. **Revert:** `terraform apply` to force match with code
+3. **Import:** `terraform import` for unmanaged resources
+
+To avoid drift, we need to take below steps:
+- Use `prevent_destroy` lifecycle rules
+- Implement proper IAM restrictions
+- Enable CloudTrail auditing
+- Use CI/CD for all changes
+- Regular automated drift detection
+
+### Q2: How would you import an existing VPC?
+
+Here is the way to import an exisitng VPC:
+
+first define the corresponding resource blocks in the Terraform configuration to match the existing infrastructure, such as aws_vpc, aws_subnet, and aws_internet_gateway
+
+# 1. Create resource block in Terraform
+resource "aws_vpc" "imported" {
+  cidr_block = "10.0.0.0/16"
+}
+Then, I use the terraform import command to map the existing AWS resources to Terraform state
+# 2. Import the VPC
+terraform import aws_vpc.imported vpc-0123456789abcdef
+# 3. Import related resources
+terraform import aws_subnet.public_1 subnet-abc123
+terraform import aws_internet_gateway.main igw-xyz789
+
+After importing all related resources, I run terraform plan to verify that Terraform correctly recognizes the existing infrastructure and that no unintended changes are proposed.
+
+# 4. Verify
+terraform plan  # Should show "No changes"
+
+Finally, I update the Terraform configuration to fully reflect the current infrastructure settings, ensuring the code becomes the single source of truth going forward.
+
+### Q3: How do you prevent accidental deletion of prod infrastructure?
+
+**Multi-layer protection:**
+
+We can take below steps to avoid accidental deletion
+
+1. **Lifecycle Rules:**
+
+    lifecycle {
+    prevent_destroy = true
+    }
+
+2. **AWS Resource Protection:**
+Enable Termination protection for ec2 instances:
+disable_api_termination = true
+
+3. **IAM Policies with Explicit Deny**
+4. **CI/CD Safeguards** - Manual approvals for prod
+5. **State Locking** - Prevents concurrent changes
+6. **Workspace Separation**
+7. **Required Approvals** - 2+ PR reviews
+8. **Separate AWS Accounts** for environments
+9. **Automated Backups**
+10. **CloudWatch Alarms** for destructive operations

@@ -1,0 +1,112 @@
+## 🏭 Part 4: Production Readiness
+
+### Q1: Terraform in CI/CD
+
+Terraform is integrated into CI/CD pipelines to enforce Infrastructure as Code and ensure all infrastructure changes are reviewed, tested, and audited before deployment.
+Below are the steps, we can consider in the CI/CD setup of terraform:
+
+**Pipeline Stages:**
+
+# Plan Stage (On PR)
+- Terraform Format Check
+- Terraform Init
+- Terraform Validate
+- Terraform Plan
+- Security Scanning (tfsec, checkov)
+- Cost Estimation (Infracost)
+- Post plan to PR comments
+
+# Apply Stage (On Merge)
+- Manual Approval (for prod)
+- Terraform Init
+- Terraform Apply
+- Notification (Slack/Email)
+
+This approach ensures controlled, repeatable, and auditable infrastructure deployments.
+
+**Best Practices:**
+- Plan on PR, Apply on merge
+- Use OIDC for AWS auth (no long-lived credentials)
+- Separate environments (dev/staging/prod)
+- Implement drift detection
+- Enable state locking
+
+### Q2: Secrets Management
+
+Secrets should never be hardcoded in Terraform code, state files, or version control. I use managed secret stores such as AWS Secrets Manager or AWS Systems Manager Parameter Store to securely store sensitive data like database passwords, API keys, and tokens.
+
+1. **AWS Secrets Manager / Parameter Store:**
+
+resource "aws_secretsmanager_secret" "db_password" {
+  name = "app-db-password"
+}
+
+# Reference in user data via AWS CLI
+
+2. **Terraform Variables:**
+
+variable "db_password" {
+  type      = string
+  sensitive = true
+  # NO DEFAULT for secrets
+}
+
+3. **Environment Variables:**
+bash
+export TF_VAR_db_password="$DB_PASSWORD"
+
+In Terraform, sensitive inputs are defined using variables with sensitive = true and without default values to prevent accidental exposure.
+
+4. **State Encryption:**
+
+backend "s3" {
+  encrypt = true
+}
+
+**Best Practices:**
+- Never hardcode secrets
+- Mark variables as sensitive
+- Use IAM roles over access keys
+- Rotate secrets regularly
+- Audit access with CloudTrail
+
+
+### Q3: Version Pinning & Upgrade Strategy
+
+In the Terraform configuration, I pin both the Terraform CLI version and provider versions using the required_version and required_providers blocks, for example restricting Terraform to a major version range and allowing only compatible provider updates using semantic version constraints such as ~> 5.0 for the AWS provider. This prevents unexpected breaking changes from automatic upgrades.
+
+**Pinning:**
+
+terraform {
+  required_version = ">= 1.6.0, < 2.0.0"
+  
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"  # Allow 5.x updates
+    }
+  }
+}
+
+**Upgrade Strategy:**
+
+1. **Planning:**
+   - Review changelog
+   - Test in dev first
+   - Create upgrade branch
+
+2. **Testing:**
+   - Delete `.terraform/`
+   - Run `terraform init -upgrade`
+   - Validate and plan
+   - Test in dev
+
+3. **Gradual Rollout:**
+   - Week 1: Dev
+   - Week 2: Staging
+   - Week 3: Production
+
+4. **Rollback Plan:**
+   - Keep previous version available
+   - Document versions used
+   - Monitor for deprecations
